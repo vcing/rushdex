@@ -1,0 +1,8 @@
+websockets
+python-socks[asyncio]
+pydantic
+pydantic-settings
+httpx[socks]
+web3
+eth_abi
+requests[socks]

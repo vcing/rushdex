@@ -1,0 +1,65 @@
+# 忽略Python字节码文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 忽略虚拟环境和依赖
+env/
+venv/
+.venv/
+pyvenv.cfg
+
+# 忽略构建和分发文件夹
+build/
+dist/
+*.egg-info/
+*.egg
+
+# 忽略IDE配置文件
+.idea/
+# .vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 忽略操作系统文件
+.DS_Store
+Thumbs.db
+
+# 忽略日志文件
+logs/
+*.log
+
+# 忽略缓存文件
+.cache/
+
+# 忽略测试和覆盖率报告
+.pytest_cache/
+coverage.xml
+htmlcov/
+
+# 忽略环境变量文件
+.env
+.env.local
+.env.*.local
+
+# 忽略数据库文件
+*.sqlite3
+*.db
+
+# 忽略Jupyter笔记本检查点
+.ipynb_checkpoints/
+
+# 忽略打包工具文件
+Pipfile.lock
+poetry.lock
+
+# 忽略其他杂项
+TODO.md
+*~
+
+test.py
+data
