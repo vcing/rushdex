@@ -188,3 +188,36 @@ class AsterExchange(Exchange):
         }
         response = await client.delete(f"/fapi/v1/order?{data}", headers=headers)
         return response.json()
+
+    @staticmethod
+    async def create_listen_key_v1(*, client: AsyncClient, account: AsterAccountV1) -> dict:
+        """
+        创建监听键
+        :param client: HTTP客户端
+        :param account: 账户
+        :return: 创建监听键结果
+        POST /fapi/v1/listenKey
+        """
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "PythonApp/1.0",
+            "X-MBX-APIKEY": account.api_key,
+        }
+        response = await client.post(f"/fapi/v1/listenKey", headers=headers)
+        return response.json()
+
+    @staticmethod
+    async def refresh_listen_key_v1(*, client: AsyncClient, account: AsterAccountV1) -> dict:
+        """
+        刷新监听键
+        :param client: HTTP客户端
+        :param account: 账户
+        :return: 刷新监听键结果
+        POST /fapi/v1/listenKey
+        """
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "PythonApp/1.0",
+            "X-MBX-APIKEY": account.api_key,
+        }
+        await client.put(f"/fapi/v1/listenKey", headers=headers)

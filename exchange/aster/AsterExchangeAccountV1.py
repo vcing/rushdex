@@ -1,7 +1,6 @@
 from random import random
 from exchange.aster.AsterAccountV1 import AsterAccountV1
 from exchange.aster.AsterExchange import AsterExchange, base_url
-from lib.ExchangeAccount import ExchangeAccount
 from httpx import AsyncClient
 from lib.logger import get_logger
 from model.Symbol import Symbol
@@ -10,6 +9,11 @@ from lib.tools import format_to_stepsize
 from model.Order import Order, OrderHoldType
 from model.CanceledOrder import CanceledOrder
 from model.PositionPrice import PositionPrice
+import websockets
+from lib.ExchangeAccount import ExchangeAccount
+from typing import Callable
+import asyncio
+
 
 logger = get_logger(__name__)
 
@@ -22,13 +26,18 @@ class AsterExchangeAccountV1(ExchangeAccount):
     account: AsterAccountV1 = None
     exchange_info: dict = None
 
-    async def init(self, *, account: AsterAccountV1):
+    async def init(self, *, account: AsterAccountV1, callback: Callable[[str], None]) -> asyncio.Task:
         """
         初始化交易所账户
         """
         self.account = account
         self.client = AsyncClient(proxy=self.account.proxy, base_url=base_url)
+
         await self.init_exchange_info()
+        listen_key = await self.get_listen_key()
+        refresh_task = asyncio.create_task(self.refresh_listen_key())
+        ws_task = asyncio.create_task(self.init_ws(listen_key=listen_key, callback=callback))
+        return asyncio.gather(refresh_task, ws_task)
 
     async def init_exchange_info(self):
         """
@@ -88,3 +97,29 @@ class AsterExchangeAccountV1(ExchangeAccount):
         :return: ask_price, bid_price
         """
         return await AsterExchange.get_depth_position(client=self.client, symbol=symbol, depth_position=self.account.depth_position)
+
+    async def refresh_listen_key(self):
+        """
+        刷新监听键
+        """
+        while True:
+            await asyncio.sleep(60 * 30)
+            await AsterExchange.refresh_listen_key_v1(client=self.client, account=self.account)
+
+    async def get_listen_key(self) -> str:
+        """
+        获取listenKey
+        :return: listen_key
+        """
+        data = await AsterExchange.create_listen_key_v1(client=self.client, account=self.account)
+        return data["listenKey"]
+
+    async def init_ws(self, *, listen_key: str, callback: Callable[[str], None]):
+        """
+        初始化websocket
+        """
+        # 生成listenKey
+        # wss://fstream.asterdex.com
+        async for ws in websockets.connect(uri=f"wss://fstream.asterdex.com/ws/{listen_key}", proxy=self.account.proxy):
+            async for message in ws:
+                callback(message=message)

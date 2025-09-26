@@ -143,20 +143,23 @@ class RushTask(BaseModel):
             first_account=first_account,
             second_account=second_account,
         )
-        first_account.running_tasks[task.task_id] = task
-        second_account.running_tasks[task.task_id] = task
         return task
 
-    def filled_order_callback(self, *, filled_result: dict):
+    def order_update_callback(self, *, order_update_result: dict):
         """
         已成交订单回调
         :param filled_result: 已成交订单结果
         :return: None
         """
-        filled_result_order: dict = filled_result.get("o")
-        if filled_result_order is None:
+        update_order: dict = order_update_result.get("o")
+        if update_order is None:
             return
-        order_id: str = filled_result_order.get("i")
+        current_status: str = update_order.get("X")
+        if current_status is None:
+            return
+        if current_status != "FILLED":
+            return
+        order_id: str = update_order.get("i")
         if order_id is None:
             return
         if order_id not in self.open_orders.keys():
@@ -164,7 +167,7 @@ class RushTask(BaseModel):
         order = self.open_orders.get(order_id)
         if order is None:
             return
-        filled_order = FilledOrder.from_order(filled_result=filled_result, order=order)
+        filled_order = FilledOrder.from_order(filled_result=order_update_result, order=order)
         self.filled_orders.append(filled_order)
         # 从未成交订单映射中移除已成交订单
         self.open_orders.pop(order_id)
@@ -367,9 +370,6 @@ class RushTask(BaseModel):
         """
         self.change_status(status=RushTaskStatus.COMPLETED)
         self.change_stage(stage=RushTaskStage.completed)
-        # 注销回调
-        self.first_account.running_tasks.pop(self.task_id)
-        self.second_account.running_tasks.pop(self.task_id)
 
     def failed(self) -> None:
         """
@@ -377,6 +377,3 @@ class RushTask(BaseModel):
         :return: None
         """
         self.change_status(status=RushTaskStatus.FAILED)
-        # 注销回调
-        self.first_account.running_tasks.pop(self.task_id)
-        self.second_account.running_tasks.pop(self.task_id)
