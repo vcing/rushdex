@@ -1,7 +1,7 @@
 import asyncio
 from enum import Enum
 import uuid
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from lib.ExchangeAccount import ExchangeAccount
 from lib.tools import now
 from model.PositionPrice import PositionPrice
@@ -15,7 +15,7 @@ from lib.logger import get_logger
 logger = get_logger(__name__)
 
 
-class RushTaskStatus(Enum):
+class RushTaskStatus(str, Enum):
     """
     刷量任务状态
     """
@@ -32,7 +32,7 @@ class RushTaskStatus(Enum):
     FAILED = "failed"
 
 
-class RushTaskStage(Enum):
+class RushTaskStage(str, Enum):
     """
     刷量任务阶段
     """
@@ -57,7 +57,7 @@ class RushTaskLog(BaseModel):
     """
     刷量任务阶段日志类
     """
-
+    model_config = ConfigDict(use_enum_values=True)  # Pydantic v2
     timestamp: int
     preview_status: RushTaskStatus
     current_status: RushTaskStatus
@@ -70,7 +70,7 @@ class RushTask(BaseModel):
     """
     刷量任务类
     """
-
+    model_config = ConfigDict(use_enum_values=True)  # Pydantic v2
     # 任务ID
     id: str
     # 任务状态

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from model.OrderParams import OrderParams
 
 
-class OrderHoldType(Enum):
+class OrderHoldType(str, Enum):
     """
     订单持仓目的类型枚举类
     """

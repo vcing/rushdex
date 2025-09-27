@@ -13,6 +13,7 @@ import uuid
 from lib.logger import get_logger
 from lib.tools import now
 import os
+import datetime
 
 
 logger = get_logger(__name__)
@@ -167,13 +168,20 @@ class RushEngine(BaseModel):
                 # 启动任务
                 asyncio.create_task(task.run())
 
-            # 3. 短暂休眠，避免空循环占用CPU
+            # 3. 如果完成的任务大于100条，保存一次
+            if len(self.completed_tasks) + len(self.failed_tasks) >= 100:
+                self.save_tasks()
+
+            # 4. 短暂休眠，避免空循环占用CPU
             await asyncio.sleep(config.RushEngineInterval)
 
         logger.info("安全退出，等待所有任务完成")
         while len(self.running_tasks) > 0:
             self.remove_finished_tasks()
             await asyncio.sleep(1)
+
+        # 5. 结束保存任务
+        self.save_tasks()
 
     def check_stop(self) -> bool:
         """
@@ -206,3 +214,25 @@ class RushEngine(BaseModel):
 
         # 启动任务运行器
         await self.task_runner()
+
+    def save_tasks(self):
+        """
+        保存执行完成的RushTask
+        """
+        file_name_map = {0: "completed_tasks", 1: "failed_tasks"}
+        exclude = {
+            "first_account",
+            "second_account",
+        }
+        folder = os.path.join("data", "tasks")
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        for index, task_list in enumerate([self.completed_tasks, self.failed_tasks]):
+            if len(task_list) == 0:
+                continue
+            save_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            file_name = file_name_map[index] + "_" + save_time + ".json"
+            with open(os.path.join(folder, file_name), "w") as f:
+                json.dump([task.model_dump(exclude=exclude) for task in task_list], f, indent=2)
+                logger.info(f"已保存 {len(task_list)} 条 {file_name_map[index]}")
+            task_list.clear()

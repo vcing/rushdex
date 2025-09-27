@@ -32,7 +32,10 @@ class AsterExchangeAccountV1(ExchangeAccount):
         初始化交易所账户
         """
         self.account = account
-        self.client = AsyncClient(proxy=self.account.proxy, base_url=base_url)
+        if self.account.proxy is not None:
+            self.client = AsyncClient(proxy=self.account.proxy, base_url=base_url)
+        else:
+            self.client = AsyncClient(base_url=base_url)
 
         await self.init_exchange_info()
         listen_key = await self.get_listen_key()
