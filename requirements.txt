@@ -6,3 +6,4 @@ httpx[socks]
 web3
 eth_abi
 requests[socks]
+loguru
