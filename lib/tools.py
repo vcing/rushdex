@@ -37,4 +37,4 @@ def now() -> int:
     获取当前时间戳
     :return: 当前时间戳
     """
-    return int(time.time())
+    return int(time.time() * 1000)

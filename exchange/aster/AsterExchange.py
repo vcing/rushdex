@@ -12,6 +12,8 @@ from eth_account.messages import encode_defunct
 from eth_account import Account
 import hmac
 import hashlib
+import config
+import random
 from urllib.parse import urlencode
 from model.PositionPrice import PositionPrice
 
@@ -124,7 +126,7 @@ class AsterExchange(Exchange):
         :return: 下单结果
         POST /fapi/v1/order
         """
-        params_dict = params.model_dump(mode="json")
+        params_dict = params.model_dump(mode="json", exclude_none=True)
         data = urlencode(params_dict)
         hmac_obj = hmac.new(account.api_secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha256)
         data += f"&signature={hmac_obj.hexdigest()}"
@@ -134,13 +136,16 @@ class AsterExchange(Exchange):
             "X-MBX-APIKEY": account.api_key,
         }
         url = "/fapi/v1/order"
-        if account.test_mode:
+        if config.simulate:
             url = "/fapi/v1/order/test"
         response = await client.post(url, data=data, headers=headers)
-        return response.json()
+        result = response.json()
+        if config.simulate:
+            result["orderId"] = int(random.random() * 1000000)
+        return result
 
     @staticmethod
-    async def get_depth_position(*, client: AsyncClient, symbol: Symbol, position: int) -> PositionPrice:
+    async def get_depth_position(*, client: AsyncClient, symbol: str, position: int) -> PositionPrice:
         """
         获取限价单下单时 使用价格距离盘口的位置
         :param client: HTTP客户端
@@ -155,7 +160,7 @@ class AsterExchange(Exchange):
                 limit = _limit
                 break
 
-        response = await client.get(f"/fapi/v1/depth?symbol={symbol.symbol}&limit={limit}")
+        response = await client.get(f"/fapi/v1/depth?symbol={symbol}&limit={limit}")
         data: dict = response.json()
         asks: list[list[str]] = data.get("asks")
         bids: list[list[str]] = data.get("bids")

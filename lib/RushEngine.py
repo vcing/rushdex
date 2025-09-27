@@ -1,4 +1,6 @@
 import functools
+import json
+from httpx import get
 from pydantic import BaseModel
 from exchange.aster.AsterExchangeAccountV1 import AsterExchangeAccountV1
 from lib.ExchangeAccount import ExchangeAccount
@@ -6,8 +8,18 @@ from lib.RushTask import RushTask, RushTaskStatus
 from exchange.aster.AsterAccountV1 import AsterAccountV1
 import random
 import asyncio
-
 import config
+import uuid
+from lib.logger import get_logger
+from lib.tools import now
+import os
+
+
+logger = get_logger(__name__)
+
+exchange_map = {
+    "aster": AsterAccountV1,
+}
 
 
 class RushEngine(BaseModel):
@@ -24,7 +36,25 @@ class RushEngine(BaseModel):
 
     max_concurrent_tasks: int = config.max_concurrent_tasks
 
-    stop: bool = False
+    async def simulate_callback(self):
+        """
+        模拟回调函数
+        """
+        while True:
+            for _, task in self.running_tasks.items():
+                if len(task.open_orders) == 0:
+                    continue
+                target_order_id = random.choice(list(task.open_orders.keys()))
+                target_order = task.open_orders[target_order_id]
+                data = {
+                    "e": "ORDER_TRADE_UPDATE",
+                    "E": now(),
+                    "T": now(),
+                    "o": {"x": "FILLED", "X": "FILLED", "i": target_order.order_result["orderId"]},
+                }
+                self.callback(account_id=target_order.account_id, message=json.dumps(data))
+
+            await asyncio.sleep(5)
 
     def callback(self, *, account_id: str, message: str):
         """
@@ -32,7 +62,8 @@ class RushEngine(BaseModel):
         """
         if account_id in self.account_running_tasks:
             for _, task in self.account_running_tasks[account_id].items():
-                task.order_update_callback(message=message)
+                data = json.loads(message)
+                task.order_update_callback(message=data)
 
     def generate_available_account_symbols(self) -> dict[str, list[str]]:
         """
@@ -66,8 +97,6 @@ class RushEngine(BaseModel):
         """
         生成下一个任务
         """
-        if self.stop:
-            return None
         available_account_symbols = self.generate_available_account_symbols()
         if len(available_account_symbols) == 0:
             return None
@@ -82,37 +111,49 @@ class RushEngine(BaseModel):
             return None
 
         return RushTask(
+            id="RT-" + uuid.uuid4().hex,
             symbol=picked_symbol,
             first_account=self.accounts[first_account_id],
             second_account=self.accounts[second_account_id],
         )
 
+    def remove_finished_tasks(self):
+        """
+        移除已完成的任务
+        """
+        remove_task_ids: list[str] = []
+        for task_id, task in self.running_tasks.items():
+            first_account_id = task.first_account.account.id
+            second_account_id = task.second_account.account.id
+            if task.status == RushTaskStatus.COMPLETED:
+                remove_task_ids.append(task_id)
+                self.completed_tasks.append(task)
+                # 从账户运行任务中移除
+                for account_id in [first_account_id, second_account_id]:
+                    if account_id in self.account_running_tasks:
+                        self.account_running_tasks[account_id].pop(task_id)
+            elif task.status == RushTaskStatus.FAILED:
+                remove_task_ids.append(task_id)
+                self.failed_tasks.append(task)
+                # 从账户运行任务中移除
+                for account_id in [first_account_id, second_account_id]:
+                    if account_id in self.account_running_tasks:
+                        self.account_running_tasks[account_id].pop(task_id)
+
+        # 移除已完成的任务
+        for task_id in remove_task_ids:
+            self.running_tasks.pop(task_id)
+
     async def task_runner(self):
         """
         任务运行器
         """
-        while not self.stop:
+        while not self.check_stop():
             # 1. 移除已完成的任务
-            for task_id, task in self.running_tasks.items():
-                first_account_id = task.first_account.account.id
-                second_account_id = task.second_account.account.id
-                if task.status == RushTaskStatus.COMPLETED:
-                    self.running_tasks.pop(task_id)
-                    self.completed_tasks.append(task)
-                    # 从账户运行任务中移除
-                    for account_id in [first_account_id, second_account_id]:
-                        if account_id in self.account_running_tasks:
-                            self.account_running_tasks[account_id].pop(task_id)
-                elif task.status == RushTaskStatus.FAILED:
-                    self.running_tasks.pop(task_id)
-                    self.failed_tasks.append(task)
-                    # 从账户运行任务中移除
-                    for account_id in [first_account_id, second_account_id]:
-                        if account_id in self.account_running_tasks:
-                            self.account_running_tasks[account_id].pop(task_id)
+            self.remove_finished_tasks()
 
             # 2. 如果还有任务且未达到最大并发，创建新任务
-            while len(self.running_tasks) < self.max_concurrent_tasks and not self.stop:
+            while len(self.running_tasks) < self.max_concurrent_tasks:
                 task = self.generate_next_task()
                 if task is None:
                     break
@@ -129,13 +170,29 @@ class RushEngine(BaseModel):
             # 3. 短暂休眠，避免空循环占用CPU
             await asyncio.sleep(config.RushEngineInterval)
 
+        logger.info("安全退出，等待所有任务完成")
+        while len(self.running_tasks) > 0:
+            self.remove_finished_tasks()
+            await asyncio.sleep(1)
+
+    def check_stop(self) -> bool:
+        """
+        检查是否需要停止引擎
+        """
+        return os.path.exists("shutdown")
+
     async def start(self):
         """
         启动交易引擎
         """
         # 启动账户任务
+        logger.info(f"Rush Engine 启动!")
         account_tasks: list[asyncio.Task] = []
-        for account in config.accounts:
+        for account_dict in config.accounts:
+            accountClass = exchange_map[account_dict["exchange"]]
+            if account_dict.get("id") is None:
+                account_dict["id"] = "A-" + uuid.uuid4().hex
+            account = accountClass(**account_dict)
             if isinstance(account, AsterAccountV1):
                 exchangeAccount = AsterExchangeAccountV1()
                 self.accounts[account.id] = exchangeAccount
@@ -145,11 +202,7 @@ class RushEngine(BaseModel):
         while any(not account.ready for account in self.accounts.values()):
             await asyncio.sleep(0.1)
 
+        logger.info(f"账户初始化完成 共初始化 {len(self.accounts)} 个账户")
+
         # 启动任务运行器
         await self.task_runner()
-
-    async def stop(self):
-        """
-        停止交易引擎
-        """
-        self.stop = True

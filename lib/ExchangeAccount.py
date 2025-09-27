@@ -26,7 +26,7 @@ class ExchangeAccount(BaseModel, ABC):
     ready: bool = False
 
     @abstractmethod
-    async def get_depth_position(self, *, symbol: str) -> PositionPrice:
+    async def get_depth_position(self, *, symbol: str, position: int) -> PositionPrice:
         """
         获取盘口指定位置价格
         :param symbol: 交易对
@@ -35,7 +35,7 @@ class ExchangeAccount(BaseModel, ABC):
         pass
 
     @abstractmethod
-    async def order(self, *, params: OrderParams, holdType: OrderHoldType, price_time: int) -> Order:
+    async def order(self, *, params: OrderParams, hold_type: OrderHoldType, price_time: int) -> Order:
         """
         下单
         """

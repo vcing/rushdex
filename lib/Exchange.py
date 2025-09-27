@@ -11,5 +11,5 @@ class Exchange(BaseModel, ABC):
     """
 
     @abstractmethod
-    async def get_depth_position(self, *, client: AsyncClient, symbol: Symbol, position: int) -> (str, str):
+    async def get_depth_position(self, *, client: AsyncClient, symbol: str, position: int) -> (str, str):
         pass

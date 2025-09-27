@@ -145,13 +145,13 @@ class RushTask(BaseModel):
         )
         return task
 
-    def order_update_callback(self, *, order_update_result: dict):
+    def order_update_callback(self, *, message: dict):
         """
         已成交订单回调
         :param filled_result: 已成交订单结果
         :return: None
         """
-        update_order: dict = order_update_result.get("o")
+        update_order: dict = message.get("o")
         if update_order is None:
             return
         current_status: str = update_order.get("X")
@@ -167,7 +167,8 @@ class RushTask(BaseModel):
         order = self.open_orders.get(order_id)
         if order is None:
             return
-        filled_order = FilledOrder.from_order(filled_result=order_update_result, order=order)
+        logger.info(f"任务 [{self.id}] {order.hold_type.value} 阶段挂单成交 {order_id} 状态更新为 {current_status}")
+        filled_order = FilledOrder.from_order(filled_result=message, order=order)
         self.filled_orders.append(filled_order)
         # 从未成交订单映射中移除已成交订单
         self.open_orders.pop(order_id)
@@ -192,22 +193,24 @@ class RushTask(BaseModel):
         if len(self.filled_orders) != 1:
             raise ValueError(f"任务 [{self.id}] 开仓限价单成交后执行，将另外一边的订单改为市价单开仓立即成交，但是只有 {len(self.filled_orders)} 个已成交订单")
 
-        open_order = self.open_orders[0]
+        open_order_id = list(self.open_orders.keys())[0]
+        open_order = self.open_orders[open_order_id]
         open_order_accounts = [account for account in [self.first_account, self.second_account] if account.account.id == open_order.account_id]
         if len(open_order_accounts) != 1:
             raise ValueError(f"任务 [{self.id}] 开仓限价单成交后执行，将另外一边的订单改为市价单开仓立即成交，但是找到 {len(open_order_accounts)} 个账户")
         open_order_account = open_order_accounts[0]
         canceled_order = await open_order_account.cancel(order=open_order)
+        self.open_orders.pop(open_order_id)
         self.cancel_orders.append(canceled_order)
 
         open_market_order_params = canceled_order.order_params.model_copy()
         open_market_order_params.type = OrderType.MARKET
-        open_market_order_params.timeInForce = OrderTimeInForce.FOK
-        open_market_order_params.timestamp = None
+        open_market_order_params.timeInForce = None
+        open_market_order_params.timestamp = now()
         open_market_order_params.price = None
 
         self.change_stage(stage=RushTaskStage.open_market)
-        open_market_order = await open_order_account.order(params=open_market_order_params, holdType=OrderHoldType.close, price_time=now())
+        open_market_order = await open_order_account.order(params=open_market_order_params, hold_type=OrderHoldType.open, price_time=now())
         filled_order = FilledOrder.from_order(order=open_market_order)
         self.filled_orders.append(filled_order)
         asyncio.create_task(self.hold())
@@ -224,22 +227,24 @@ class RushTask(BaseModel):
         if len(self.filled_orders) != 3:
             raise ValueError(f"任务 [{self.id}] 平仓限价单成交后执行，将另外一边的订单改为市价单平仓立即成交，但是只有 {len(self.filled_orders)} 个已成交订单")
 
-        open_order = self.open_orders[0]
+        open_order_id = list(self.open_orders.keys())[0]
+        open_order = self.open_orders[open_order_id]
         open_order_accounts = [account for account in [self.first_account, self.second_account] if account.account.id == open_order.account_id]
         if len(open_order_accounts) != 1:
             raise ValueError(f"任务 [{self.id}] 平仓限价单成交后执行，将另外一边的订单改为市价单平仓立即成交，但是找到 {len(open_order_accounts)} 个账户")
         open_order_account = open_order_accounts[0]
         canceled_order = await open_order_account.cancel(order=open_order)
+        self.open_orders.pop(open_order_id)
         self.cancel_orders.append(canceled_order)
 
         close_market_order_params = canceled_order.order_params.model_copy()
         close_market_order_params.type = OrderType.MARKET
-        close_market_order_params.timeInForce = OrderTimeInForce.FOK
-        close_market_order_params.timestamp = None
+        close_market_order_params.timeInForce = None
+        close_market_order_params.timestamp = now()
         close_market_order_params.price = None
 
         self.change_stage(stage=RushTaskStage.close_market)
-        close_market_order = await open_order_account.order(params=close_market_order_params, holdType=OrderHoldType.close, price_time=now())
+        close_market_order = await open_order_account.order(params=close_market_order_params, hold_type=OrderHoldType.close, price_time=now())
         filled_order = FilledOrder.from_order(order=close_market_order)
         self.filled_orders.append(filled_order)
         self.finish()
@@ -258,6 +263,7 @@ class RushTask(BaseModel):
         logger.info(message)
         self.change_stage(stage=RushTaskStage.hold)
         await asyncio.sleep(hold_time)
+        asyncio.create_task(self.close_limit())
 
     def random_exchange_account(self) -> tuple[ExchangeAccount, ExchangeAccount]:
         """
@@ -281,17 +287,17 @@ class RushTask(BaseModel):
             raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(self.filled_orders)} 个已成交订单")
         open_buy_orders = [order for order in self.filled_orders if order.hold_type == OrderHoldType.open and order.order_params.side == OrderSide.BUY]
         if len(open_buy_orders) != 1:
-            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(open_buy_orders)} 个开仓限价单")
+            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(open_buy_orders)} 个开仓 {OrderSide.BUY.value} 单")
         open_buy_order = open_buy_orders[0]
 
         open_sell_orders = [order for order in self.filled_orders if order.hold_type == OrderHoldType.open and order.order_params.side == OrderSide.SELL]
         if len(open_sell_orders) != 1:
-            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(open_sell_orders)} 个开仓限价单")
+            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(open_sell_orders)} 个开仓 {OrderSide.SELL.value} 单")
         open_sell_order = open_sell_orders[0]
 
         random_account, _ = self.random_exchange_account()
         # 获取盘口指定位置价格
-        position_price: PositionPrice = await random_account.get_depth_position(symbol=self.symbol, depth_position=random_account.account.depth_position)
+        position_price: PositionPrice = await random_account.get_depth_position(symbol=self.symbol, position=random_account.account.depth_position)
 
         close_buy_order_params = OrderParams(
             symbol=self.symbol,
@@ -300,6 +306,7 @@ class RushTask(BaseModel):
             price=position_price.ask_price,
             quantity=open_buy_order.order_params.quantity,
             timeInForce=OrderTimeInForce.GTX,
+            timestamp=now(),
         )
         close_sell_order_params = OrderParams(
             symbol=self.symbol,
@@ -308,6 +315,7 @@ class RushTask(BaseModel):
             price=position_price.bid_price,
             quantity=open_sell_order.order_params.quantity,
             timeInForce=OrderTimeInForce.GTX,
+            timestamp=now(),
         )
 
         # 找到开仓时对应的账户
@@ -321,13 +329,16 @@ class RushTask(BaseModel):
             raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(close_sell_order_accounts)} 个账户")
         close_sell_order_account = close_sell_order_accounts[0]
 
-        close_buy_task = asyncio.create_task(close_buy_order_account.order(order_params=close_buy_order_params, holdType=OrderHoldType.close, price_time=position_price.timestamp))
-        close_sell_task = asyncio.create_task(close_sell_order_account.order(order_params=close_sell_order_params, holdType=OrderHoldType.close, price_time=position_price.timestamp))
+        close_buy_task = asyncio.create_task(close_buy_order_account.order(params=close_buy_order_params, hold_type=OrderHoldType.close, price_time=position_price.timestamp))
+        close_sell_task = asyncio.create_task(close_sell_order_account.order(params=close_sell_order_params, hold_type=OrderHoldType.close, price_time=position_price.timestamp))
         self.change_stage(stage=RushTaskStage.close_limit)
-        results: tuple[Order, Order] = await asyncio.gather(close_buy_task, close_sell_task)
+        results: tuple[Order, Order] = await asyncio.gather(close_buy_task, close_sell_task, return_exceptions=True)
         for order in results:
+            if isinstance(order, Exception):
+                logger.error(f"任务 [{self.id}] 平仓限价单失败，异常信息：{order}")
+                self.failed()
+                return
             self.open_orders[order.order_result["orderId"]] = order
-
 
     async def run(self) -> None:
         """
@@ -338,29 +349,21 @@ class RushTask(BaseModel):
         self.change_status(status=RushTaskStatus.STARTED)
         random_account, another_account = self.random_exchange_account()
         # 获取盘口指定位置价格
-        position_price: PositionPrice = await random_account.get_depth_position(symbol=self.symbol, depth_position=random_account.account.depth_position)
+        position_price: PositionPrice = await random_account.get_depth_position(symbol=self.symbol, position=random_account.account.depth_position)
 
-        buy_order_params = OrderParams(
-            symbol=self.symbol,
-            side=OrderSide.BUY,
-            type=OrderType.LIMIT,
-            price=position_price.bid_price,
-            timeInForce=OrderTimeInForce.GTX,
-        )
+        buy_order_params = OrderParams(symbol=self.symbol, side=OrderSide.BUY, type=OrderType.LIMIT, price=position_price.bid_price, timeInForce=OrderTimeInForce.GTX, timestamp=now())
 
-        sell_order_params = OrderParams(
-            symbol=self.symbol,
-            side=OrderSide.SELL,
-            type=OrderType.LIMIT,
-            price=position_price.ask_price,
-            timeInForce=OrderTimeInForce.GTX,
-        )
+        sell_order_params = OrderParams(symbol=self.symbol, side=OrderSide.SELL, type=OrderType.LIMIT, price=position_price.ask_price, timeInForce=OrderTimeInForce.GTX, timestamp=now())
 
-        buy_task = asyncio.create_task(random_account.order(order_params=buy_order_params, holdType=OrderHoldType.open, price_time=position_price.timestamp))
-        sell_task = asyncio.create_task(another_account.order(order_params=sell_order_params, holdType=OrderHoldType.open, price_time=position_price.timestamp))
+        buy_task = asyncio.create_task(random_account.order(params=buy_order_params, hold_type=OrderHoldType.open, price_time=position_price.timestamp))
+        sell_task = asyncio.create_task(another_account.order(params=sell_order_params, hold_type=OrderHoldType.open, price_time=position_price.timestamp))
         self.change_stage(stage=RushTaskStage.open_limit)
-        results: tuple[Order, Order] = await asyncio.gather(buy_task, sell_task)
+        results: tuple[Order, Order] = await asyncio.gather(buy_task, sell_task, return_exceptions=True)
         for order in results:
+            if isinstance(order, Exception):
+                logger.error(f"任务 [{self.id}] 开仓限价单失败，异常信息：{order}")
+                self.failed()
+                return
             self.open_orders[order.order_result["orderId"]] = order
 
     def finish(self) -> None:

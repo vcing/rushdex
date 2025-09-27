@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 class AsterExchangeAccountV1(ExchangeAccount):
     """
-    币安V1交易所账户类
+    Aster V1交易所账户类
     """
 
     account: AsterAccountV1 = None
@@ -37,7 +37,7 @@ class AsterExchangeAccountV1(ExchangeAccount):
         listen_key = await self.get_listen_key()
         refresh_task = asyncio.create_task(self.refresh_listen_key())
         ws_task = asyncio.create_task(self.init_ws(listen_key=listen_key, callback=callback))
-        return asyncio.gather(refresh_task, ws_task)
+        return asyncio.gather(refresh_task, ws_task, return_exceptions=True)
 
     async def init_exchange_info(self):
         """
@@ -62,7 +62,7 @@ class AsterExchangeAccountV1(ExchangeAccount):
                     step_size = filter["stepSize"]
             self.symbols[symbol] = Symbol(symbol=symbol, tick_size=tick_size, step_size=step_size)
 
-    async def order(self, *, params: OrderParams, holdType: OrderHoldType, price_time: int) -> Order:
+    async def order(self, *, params: OrderParams, hold_type: OrderHoldType, price_time: int) -> Order:
         """
         下单
         """
@@ -77,26 +77,28 @@ class AsterExchangeAccountV1(ExchangeAccount):
             # 实际下单数量
             params.quantity = format_to_stepsize(target_amount / float(params.price), self.symbols[params.symbol].step_size)
 
-        logger.info(f"下单参数: {params.model_dump_json(indent=2)}")
+        logger.info(f"下单参数: {params.model_dump_json(indent=2, exclude_none=True)}")
 
-        orderResult = await AsterExchange.order_v1(client=self.client, params=params, account=self.account)
-        order = Order(orderParams=params, orderResult=orderResult, holdType=holdType, price_time=price_time, account_id=self.account.id)
+        order_result = await AsterExchange.order_v1(client=self.client, params=params, account=self.account)
+        if order_result.get("code") is not None:
+            raise ValueError(f"下单失败: {order_result}")
+        order = Order(order_params=params, order_result=order_result, hold_type=hold_type, price_time=price_time, account_id=self.account.id)
         return order
 
     async def cancel(self, *, order: Order) -> CanceledOrder:
         """
         取消订单
         """
-        cancelResult = await AsterExchange.delete_order_v1(client=self.client, account=self.account, symbol=order.order_params.symbol, order_id=order.order_result["orderId"])
-        return CanceledOrder.from_order(order=order, cancelResult=cancelResult)
+        cancel_result = await AsterExchange.delete_order_v1(client=self.client, account=self.account, symbol=order.order_params.symbol, order_id=order.order_result["orderId"])
+        return CanceledOrder.from_order(order=order, cancel_result=cancel_result)
 
-    async def get_depth_position(self, *, symbol: str) -> PositionPrice:
+    async def get_depth_position(self, *, symbol: str, position: int) -> PositionPrice:
         """
         获取盘口指定位置价格
         :param symbol: 交易对
         :return: ask_price, bid_price
         """
-        return await AsterExchange.get_depth_position(client=self.client, symbol=symbol, depth_position=self.account.depth_position)
+        return await AsterExchange.get_depth_position(client=self.client, symbol=symbol, position=position)
 
     async def refresh_listen_key(self):
         """
