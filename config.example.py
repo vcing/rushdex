@@ -29,6 +29,7 @@ max_concurrent_tasks: int = int(len(accounts) / 2) * len(symbols)
 # 限价单下单时 使用价格距离盘口的位置 aster 交易所 可以在这里查看 http://fapi.asterdex.com/fapi/v1/depth?symbol=BTCUSDT&limit=500
 depth_position: int = 50
 # 目标下单金额
+# 注意BTC目前的最小下单量是 0.001 BTC 大约 110USDT
 target_amount: int = 100
 # 下单金额偏差 0.01 表示 1%
 amount_deviation: float = 0.01

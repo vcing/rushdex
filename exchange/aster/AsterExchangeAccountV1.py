@@ -1,4 +1,5 @@
 from random import random
+import config
 from exchange.aster.AsterAccountV1 import AsterAccountV1
 from exchange.aster.AsterExchange import AsterExchange, base_url
 from httpx import AsyncClient
@@ -74,6 +75,11 @@ class AsterExchangeAccountV1(ExchangeAccount):
             deviation_amount = target_amount * self.account.amount_deviation * (random() * 2 - 1)
             # 实际下单金额
             target_amount += deviation_amount
+            # if config.simulate:
+            #     self.symbols[params.symbol].step_size = "0.0001"
+            if (target_amount / float(params.price)) < float(self.symbols[params.symbol].step_size):
+                min_usdt = float(self.symbols[params.symbol].step_size) * float(params.price)
+                raise ValueError(f"下单金额 {target_amount} 小于{params.symbol}步进金额(最小下单金额) {self.symbols[params.symbol].step_size} {params.symbol} 约 {min_usdt} USDT")
             # 实际下单数量
             params.quantity = format_to_stepsize(target_amount / float(params.price), self.symbols[params.symbol].step_size)
 
