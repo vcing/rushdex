@@ -22,6 +22,8 @@ class ExchangeAccount(BaseModel, ABC):
     client: AsyncClient = None
     # 交易对列表
     symbols: dict[str, Symbol] = {}
+    # 账户是否初始化就绪
+    ready: bool = False
 
     @abstractmethod
     async def get_depth_position(self, *, symbol: str) -> PositionPrice:

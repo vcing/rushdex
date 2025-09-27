@@ -72,7 +72,7 @@ class RushTask(BaseModel):
     """
 
     # 任务ID
-    task_id: str
+    id: str
     # 任务状态
     status: RushTaskStatus = RushTaskStatus.CREATED
     # 任务阶段
@@ -101,7 +101,7 @@ class RushTask(BaseModel):
         if self.status == status:
             return
         preview_status = self.status
-        message = f"任务 [{self.task_id}] 状态从 {preview_status.value} 变更为 {status.value}"
+        message = f"任务 [{self.id}] 状态从 {preview_status.value} 变更为 {status.value}"
         self.status = status
         logger.info(message)
         self.logs.append(
@@ -124,7 +124,7 @@ class RushTask(BaseModel):
         if self.stage == stage:
             return
         preview_stage = self.stage
-        message = f"任务 [{self.task_id}] 阶段从 {preview_stage.value} 变更为 {stage.value}"
+        message = f"任务 [{self.id}] 阶段从 {preview_stage.value} 变更为 {stage.value}"
         self.stage = stage
         logger.info(message)
 
@@ -138,7 +138,7 @@ class RushTask(BaseModel):
         :return: RushTask
         """
         task = RushTask(
-            task_id=uuid.uuid4().hex,
+            id=uuid.uuid4().hex,
             symbol=symbol,
             first_account=first_account,
             second_account=second_account,
@@ -188,14 +188,14 @@ class RushTask(BaseModel):
         :return: None
         """
         if len(self.open_orders) != 1:
-            raise ValueError("任务 [{self.task_id}] 开仓限价单成交后执行，将另外一边的订单改为市价单开仓立即成交，但是只有 {} 个未成交订单".format(len(self.open_orders)))
+            raise ValueError(f"任务 [{self.id}] 开仓限价单成交后执行，将另外一边的订单改为市价单开仓立即成交，但是只有 {len(self.open_orders)} 个未成交订单")
         if len(self.filled_orders) != 1:
-            raise ValueError("任务 [{self.task_id}] 开仓限价单成交后执行，将另外一边的订单改为市价单开仓立即成交，但是只有 {} 个已成交订单".format(len(self.filled_orders)))
+            raise ValueError(f"任务 [{self.id}] 开仓限价单成交后执行，将另外一边的订单改为市价单开仓立即成交，但是只有 {len(self.filled_orders)} 个已成交订单")
 
         open_order = self.open_orders[0]
         open_order_accounts = [account for account in [self.first_account, self.second_account] if account.account.id == open_order.account_id]
         if len(open_order_accounts) != 1:
-            raise ValueError("任务 [{self.task_id}] 开仓限价单成交后执行，将另外一边的订单改为市价单开仓立即成交，但是找到 {} 个账户".format(len(open_order_accounts)))
+            raise ValueError(f"任务 [{self.id}] 开仓限价单成交后执行，将另外一边的订单改为市价单开仓立即成交，但是找到 {len(open_order_accounts)} 个账户")
         open_order_account = open_order_accounts[0]
         canceled_order = await open_order_account.cancel(order=open_order)
         self.cancel_orders.append(canceled_order)
@@ -220,14 +220,14 @@ class RushTask(BaseModel):
         :return: None
         """
         if len(self.open_orders) != 1:
-            raise ValueError("任务 [{self.task_id}] 平仓限价单成交后执行，将另外一边的订单改为市价单平仓立即成交，但是只有 {} 个未成交订单".format(len(self.open_orders)))
+            raise ValueError(f"任务 [{self.id}] 平仓限价单成交后执行，将另外一边的订单改为市价单平仓立即成交，但是只有 {len(self.open_orders)} 个未成交订单")
         if len(self.filled_orders) != 3:
-            raise ValueError("任务 [{self.task_id}] 平仓限价单成交后执行，将另外一边的订单改为市价单平仓立即成交，但是只有 {} 个已成交订单".format(len(self.filled_orders)))
+            raise ValueError(f"任务 [{self.id}] 平仓限价单成交后执行，将另外一边的订单改为市价单平仓立即成交，但是只有 {len(self.filled_orders)} 个已成交订单")
 
         open_order = self.open_orders[0]
         open_order_accounts = [account for account in [self.first_account, self.second_account] if account.account.id == open_order.account_id]
         if len(open_order_accounts) != 1:
-            raise ValueError("任务 [{self.task_id}] 平仓限价单成交后执行，将另外一边的订单改为市价单平仓立即成交，但是找到 {} 个账户".format(len(open_order_accounts)))
+            raise ValueError(f"任务 [{self.id}] 平仓限价单成交后执行，将另外一边的订单改为市价单平仓立即成交，但是找到 {len(open_order_accounts)} 个账户")
         open_order_account = open_order_accounts[0]
         canceled_order = await open_order_account.cancel(order=open_order)
         self.cancel_orders.append(canceled_order)
@@ -254,7 +254,7 @@ class RushTask(BaseModel):
         hold_time = picked_account.account.hold_time
         hold_time_deviation = picked_account.account.hold_time_deviation
         hold_time = hold_time + hold_time * (random.random() * 2 - 1) * hold_time_deviation
-        message = f"任务 [{self.task_id}] 持仓等待 {hold_time:.2f} 秒"
+        message = f"任务 [{self.id}] 持仓等待 {hold_time:.2f} 秒"
         logger.info(message)
         self.change_stage(stage=RushTaskStage.hold)
         await asyncio.sleep(hold_time)
@@ -275,18 +275,18 @@ class RushTask(BaseModel):
         :return: None
         """
         if len(self.open_orders) != 0:
-            raise ValueError("任务 [{self.task_id}] 持仓时间到后执行，挂平仓限价单，但是还有 {} 个未成交订单".format(len(self.open_orders)))
+            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是还有 {len(self.open_orders)} 个未成交订单")
 
         if len(self.filled_orders) != 2:
-            raise ValueError("任务 [{self.task_id}] 持仓时间到后执行，挂平仓限价单，但是只有 {} 个已成交订单".format(len(self.filled_orders)))
+            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(self.filled_orders)} 个已成交订单")
         open_buy_orders = [order for order in self.filled_orders if order.hold_type == OrderHoldType.open and order.order_params.side == OrderSide.BUY]
         if len(open_buy_orders) != 1:
-            raise ValueError("任务 [{self.task_id}] 持仓时间到后执行，挂平仓限价单，但是只有 {} 个开仓限价单".format(len(open_buy_orders)))
+            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(open_buy_orders)} 个开仓限价单")
         open_buy_order = open_buy_orders[0]
 
         open_sell_orders = [order for order in self.filled_orders if order.hold_type == OrderHoldType.open and order.order_params.side == OrderSide.SELL]
         if len(open_sell_orders) != 1:
-            raise ValueError("任务 [{self.task_id}] 持仓时间到后执行，挂平仓限价单，但是只有 {} 个开仓限价单".format(len(open_sell_orders)))
+            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(open_sell_orders)} 个开仓限价单")
         open_sell_order = open_sell_orders[0]
 
         random_account, _ = self.random_exchange_account()
@@ -313,12 +313,12 @@ class RushTask(BaseModel):
         # 找到开仓时对应的账户
         close_buy_order_accounts = [account for account in [self.first_account, self.second_account] if account.account.id == open_buy_order.account_id]
         if len(close_buy_order_accounts) != 1:
-            raise ValueError("任务 [{self.task_id}] 持仓时间到后执行，挂平仓限价单，但是只有 {} 个账户".format(len(close_buy_order_accounts)))
+            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(close_buy_order_accounts)} 个账户")
         close_buy_order_account = close_buy_order_accounts[0]
 
         close_sell_order_accounts = [account for account in [self.first_account, self.second_account] if account.account.id == open_sell_order.account_id]
         if len(close_sell_order_accounts) != 1:
-            raise ValueError("任务 [{self.task_id}] 持仓时间到后执行，挂平仓限价单，但是只有 {} 个账户".format(len(close_sell_order_accounts)))
+            raise ValueError(f"任务 [{self.id}] 持仓时间到后执行，挂平仓限价单，但是只有 {len(close_sell_order_accounts)} 个账户")
         close_sell_order_account = close_sell_order_accounts[0]
 
         close_buy_task = asyncio.create_task(close_buy_order_account.order(order_params=close_buy_order_params, holdType=OrderHoldType.close, price_time=position_price.timestamp))

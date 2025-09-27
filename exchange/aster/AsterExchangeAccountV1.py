@@ -121,5 +121,7 @@ class AsterExchangeAccountV1(ExchangeAccount):
         # 生成listenKey
         # wss://fstream.asterdex.com
         async for ws in websockets.connect(uri=f"wss://fstream.asterdex.com/ws/{listen_key}", proxy=self.account.proxy):
+            # 标记账户为就绪
+            self.ready = True
             async for message in ws:
                 callback(message=message)
