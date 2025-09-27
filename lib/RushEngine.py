@@ -182,9 +182,18 @@ class RushEngine(BaseModel):
         while len(self.running_tasks) > 0:
             self.remove_finished_tasks()
             await asyncio.sleep(1)
+            self.check_error()
 
         # 5. 结束保存任务
         self.save_tasks()
+
+    def check_error(self):
+        """
+        检查是否有错误强制退出标示
+        """
+        if os.path.exists("error"):
+            logger.error("发现错误强制退出标示，终止程序")
+            raise ValueError("发现错误强制退出标示，终止程序")
 
     def check_stop(self) -> bool:
         """
