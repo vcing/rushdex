@@ -140,6 +140,9 @@ class RushEngine(BaseModel):
                 for account_id in [first_account_id, second_account_id]:
                     if account_id in self.account_running_tasks:
                         self.account_running_tasks[account_id].pop(task_id)
+                # 终止程序，通知用户需要手动检查账号是否有未完成的订单
+                logger.error(f"任务 {task_id} 失败，账户 {first_account_id} 和 {second_account_id} 可能有未完成的订单")
+                raise ValueError(f"任务 {task_id} 失败，账户 {first_account_id} 和 {second_account_id} 可能有未完成的订单")
 
         # 移除已完成的任务
         for task_id in remove_task_ids:
@@ -219,6 +222,9 @@ class RushEngine(BaseModel):
         """
         保存执行完成的RushTask
         """
+        if config.simulate:
+            logger.info("模拟模式，不保存任务")
+            return
         file_name_map = {0: "completed_tasks", 1: "failed_tasks"}
         exclude = {
             "first_account",

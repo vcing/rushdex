@@ -99,6 +99,9 @@ class AsterExchangeAccountV1(ExchangeAccount):
         取消订单
         """
         cancel_result = await AsterExchange.delete_order_v1(client=self.client, account=self.account, symbol=order.order_params.symbol, order_id=order.order_result["orderId"])
+        # 模拟模式 不抛出取消订单异常
+        if cancel_result.get("code") is not None and not config.simulate:
+            raise ValueError(f"取消订单失败: {cancel_result}")
         return CanceledOrder.from_order(order=order, cancel_result=cancel_result)
 
     async def get_depth_position(self, *, symbol: str, position: int) -> PositionPrice:
