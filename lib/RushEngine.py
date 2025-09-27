@@ -171,8 +171,8 @@ class RushEngine(BaseModel):
                 # 启动任务
                 asyncio.create_task(task.run())
 
-            # 3. 如果完成的任务大于100条，保存一次
-            if len(self.completed_tasks) + len(self.failed_tasks) >= 100:
+            # 3. 如果完成的任务大于20条，保存一次
+            if len(self.completed_tasks) + len(self.failed_tasks) >= 20:
                 self.save_tasks()
 
             # 4. 短暂休眠，避免空循环占用CPU

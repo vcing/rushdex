@@ -86,7 +86,7 @@ class AsterExchangeAccountV1(ExchangeAccount):
             # 实际下单数量
             params.quantity = format_to_stepsize(target_amount / float(params.price), self.symbols[params.symbol].step_size)
 
-        logger.info(f"下单参数: {params.model_dump_json(indent=2, exclude_none=True)}")
+        # logger.info(f"下单参数: {params.model_dump_json(indent=2, exclude_none=True)}")
 
         order_result = await AsterExchange.order_v1(client=self.client, params=params, account=self.account)
         if order_result.get("code") is not None:
