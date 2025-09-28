@@ -25,7 +25,10 @@ def global_exception_handler(loop: asyncio.AbstractEventLoop, context: dict[str,
             else:
                 url += f"/{message}"
             requests.get(url)
-        loop.stop()
+        # loop.stop()
+        # 设置错误退出标示
+        with open("error", "w") as f:
+            f.write("error")
 
 
 async def main():
@@ -50,6 +53,8 @@ async def main():
     # 启动前清除shutdown文件
     if os.path.exists("shutdown"):
         os.remove("shutdown")
+    if os.path.exists("error"):
+        os.remove("error")
 
     loop = asyncio.get_running_loop()
     # 设置全局异常处理器
