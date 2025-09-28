@@ -89,7 +89,7 @@ class RushTask(BaseModel):
     # 已成交订单列表
     filled_orders: list[FilledOrder] = []
     # 未成交订单映射
-    open_orders: dict[int, Order] = {}
+    open_orders: dict[str, Order] = {}
     # 已取消订单列表
     cancel_orders: list[CanceledOrder] = []
     # 任务日志列表
@@ -182,7 +182,7 @@ class RushTask(BaseModel):
         new_order_id = str(new_order.order_result["orderId"])
         self.open_orders[new_order_id] = new_order
         # 这里不能使用ws回调了 直接继续执行下一步 和正常限价单回调的 ws 后续操作一样
-        self.limit_order_on_filled(order=new_order, message={"message": "原限价单GTX下单失败，改为市价单直接下单", result: message})
+        self.limit_order_on_filled(order=new_order, message={"message": "原限价单GTX下单失败，改为市价单直接下单"})
 
     def order_update_callback(self, *, message: dict):
         """
