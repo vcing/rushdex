@@ -177,8 +177,8 @@ class RushTask(BaseModel):
         order_params.price = None
         # 重新提交订单
         new_order: Order = await account.order(params=order_params, hold_type=order.hold_type, price_time=order.price_time)
-        order_id = new_order.order_result["orderId"]
-        self.open_orders[order_id] = new_order
+        new_order_id = str(new_order.order_result["orderId"])
+        self.open_orders[new_order_id] = new_order
         # 这里不能使用ws回调了 直接继续执行下一步 和正常限价单回调的 ws 后续操作一样
         self.limit_order_on_filled(order=new_order, message={"message": "原限价单GTX下单失败，改为市价单直接下单", result: message})
 
@@ -197,7 +197,7 @@ class RushTask(BaseModel):
             return
         if current_status not in ["FILLED", "EXPIRED"]:
             return
-        order_id: str = update_order.get("i")
+        order_id: str = str(update_order.get("i"))
         if order_id is None:
             return
         if current_status == "EXPIRED":
@@ -219,7 +219,7 @@ class RushTask(BaseModel):
         :param message: 已成交订单结果
         :return: None
         """
-        order_id = order.order_result["orderId"]
+        order_id = str(order.order_result["orderId"])
         logger.info(f"任务 [{self.id}] {order.hold_type.value} 阶段挂单成交 {order_id} 状态更新为 FILLED")
         filled_order = FilledOrder.from_order(filled_result=message, order=order)
         self.filled_orders.append(filled_order)
@@ -413,7 +413,7 @@ class RushTask(BaseModel):
                 logger.error(f"任务 [{self.id}] 平仓限价单失败，异常信息：{order}")
                 self.failed()
                 return
-            order_id = order.order_result["orderId"]
+            order_id = str(order.order_result["orderId"])
             self.open_orders[order_id] = order
             if order_id in self.expired_order_id_map.keys():
                 await self.handle_failed_limit_order(order_id=order_id, message=self.expired_order_id_map[order_id])
@@ -442,7 +442,7 @@ class RushTask(BaseModel):
                 logger.error(f"任务 [{self.id}] 开仓限价单失败，异常信息：{order}")
                 self.failed()
                 return
-            order_id = order.order_result["orderId"]
+            order_id = str(order.order_result["orderId"])
             self.open_orders[order_id] = order
             if order_id in self.expired_order_id_map.keys():
                 await self.handle_failed_limit_order(order_id=order_id, message=self.expired_order_id_map[order_id])
