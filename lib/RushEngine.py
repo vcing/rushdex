@@ -169,6 +169,8 @@ class RushEngine(BaseModel):
                     if account_id not in self.account_running_tasks:
                         self.account_running_tasks[account_id] = {}
                     self.account_running_tasks[account_id][task.id] = task
+                # 启动任务加入间隔，避免同时启动所有任务
+                await asyncio.sleep(1)
                 # 启动任务
                 asyncio.create_task(task.run())
 
