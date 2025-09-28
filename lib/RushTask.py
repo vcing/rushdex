@@ -98,6 +98,8 @@ class RushTask(BaseModel):
     # 所以 下单完成后 要检查刚才的订单的订单ID是不是在这个列表中。
     # 如果存在，则直接进行处理限价单下单失败流程
     expired_order_id_map: dict[str, dict] = {}
+    # 同理限价单下单也会存在这个问题
+    filled_order_id_map: dict[str, dict] = {}
 
     def change_status(self, *, status: RushTaskStatus) -> None:
         """
@@ -203,6 +205,8 @@ class RushTask(BaseModel):
             logger.info(f"任务 [{self.id}] 订单 {order_id} 状态更新为 {current_status}, 重新下市价单")
             asyncio.create_task(self.handle_failed_limit_order(order_id=order_id, message=message))
             return
+        elif current_status == "FILLED":
+            self.filled_order_id_map[order_id] = message
         if order_id not in self.open_orders.keys():
             return
         order = self.open_orders.get(order_id)
@@ -416,6 +420,8 @@ class RushTask(BaseModel):
             self.open_orders[order_id] = order
             if order_id in self.expired_order_id_map.keys():
                 await self.handle_failed_limit_order(order_id=order_id, message=self.expired_order_id_map[order_id])
+            if order_id in self.filled_order_id_map.keys():
+                await self.limit_order_on_filled(order=order, message=self.filled_order_id_map[order_id])
 
     async def run(self) -> None:
         """
@@ -445,6 +451,8 @@ class RushTask(BaseModel):
             self.open_orders[order_id] = order
             if order_id in self.expired_order_id_map.keys():
                 await self.handle_failed_limit_order(order_id=order_id, message=self.expired_order_id_map[order_id])
+            if order_id in self.filled_order_id_map.keys():
+                await self.limit_order_on_filled(order=order, message=self.filled_order_id_map[order_id])
 
     def finish(self) -> None:
         """
