@@ -242,7 +242,17 @@ class RushEngine(BaseModel):
         while any(not account.ready for account in self.accounts.values()):
             await asyncio.sleep(0.1)
 
-        logger.info(f"账户初始化完成 共初始化 {len(self.accounts)} 个账户")
+        logger.info(f"账户初始化完成 共初始化 {len(self.accounts)} 个账户, 开始设置杠杆。")
+
+        # 设置杠杆
+        leverage_tasks = []
+        for account in self.accounts.values():
+            for symbol in config.symbols:
+                leverage_tasks.append(asyncio.create_task(account.set_leverage(symbol=symbol, leverage=config.leverage)))
+
+        # 等待所有杠杆设置完成
+        await asyncio.gather(*leverage_tasks, return_exceptions=True)
+        logger.info(f"杠杆设置完成 启动交易")
 
         # 启动任务运行器
         await self.task_runner()

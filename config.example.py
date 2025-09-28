@@ -7,6 +7,9 @@ simulate: bool = True
 symbols: list[str] = ["BTCUSDT", "ETHUSDT"]
 accounts: list[dict] = []
 
+# 杠杆
+leverage: int = 5
+
 # 添加账户
 accounts.append(dict(
     api_key="填上你账号的apiKey",
@@ -27,7 +30,7 @@ max_concurrent_tasks: int = int(len(accounts) / 2) * len(symbols)
 
 
 # 限价单下单时 使用价格距离盘口的位置 aster 交易所 可以在这里查看 http://fapi.asterdex.com/fapi/v1/depth?symbol=BTCUSDT&limit=500
-depth_position: int = 50
+depth_position: int = 5
 # 目标下单金额
 # 注意BTC目前的最小下单量是 0.001 BTC 大约 110USDT
 target_amount: int = 100
@@ -44,6 +47,7 @@ assert max_concurrent_tasks <= int(len(accounts) / 2) * len(symbols), "最大并
 assert depth_position > 0, "depth_position 必须大于 0"
 assert depth_position <= 500, "depth_position 必须小于等于 500"
 assert target_amount >= 10, "target_amount 必须大于等于 10"
+assert leverage is int and leverage >= 1, "leverage 必须是一个大于等于 1 的整数"
 
 
 RushEngineInterval = 1 # 引擎运行检查间隔，单位秒, 如果要高频刷，需要调低这个值

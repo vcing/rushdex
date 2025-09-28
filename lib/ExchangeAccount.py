@@ -61,3 +61,13 @@ class ExchangeAccount(BaseModel, ABC):
         """
         清仓所有持仓
         """
+        pass
+
+    @abstractmethod
+    async def set_leverage(self, *, symbol: str, leverage: int):
+        """
+        设置杠杆
+        :param symbol: 交易对
+        :param leverage: 杠杆
+        """
+        pass
