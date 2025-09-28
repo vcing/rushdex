@@ -2,6 +2,7 @@ import config
 import asyncio
 import signal
 import os
+import requests
 from lib.logger import get_logger
 from lib.RushEngine import RushEngine
 
@@ -14,6 +15,16 @@ def global_exception_handler(loop: asyncio.AbstractEventLoop, context: dict[str,
 
     if exception:
         logger.error(f"捕获到异常, 终止程序: {exception}")
+        if config.bark_url:
+            url = config.bark_url
+            message = "Rushdex 异常退出，请检查。"
+            if "这里改成你自己的推送内容" in url:
+                url = url.replace("这里改成你自己的推送内容", message)
+            elif url.endswith("/"):
+                url += message
+            else:
+                url += f"/{message}"
+            requests.get(url)
         loop.stop()
 
 

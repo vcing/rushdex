@@ -40,6 +40,8 @@ amount_deviation: float = 0.01
 hold_time: int = 60 * 5 # 默认五分钟
 # 持仓时间偏差 0.01 表示 1%
 hold_time_deviation: float = 0.01
+# bark 异常推送
+bark_url = "https://api.day.app/aaaaaaaaaaaaa/这里改成你自己的推送内容"
 
 assert len(accounts) >= 2, "至少需要两个账户"
 assert len(symbols) >= 1, "至少需要一个交易对"
