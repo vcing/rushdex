@@ -5,8 +5,8 @@ from exchange.aster.AsterExchange import AsterExchange, base_url
 from httpx import AsyncClient
 from lib.logger import get_logger
 from model.Symbol import Symbol
-from model.OrderParams import OrderParams
-from lib.tools import format_to_stepsize
+from model.OrderParams import OrderParams, OrderSide, OrderTimeInForce, OrderType
+from lib.tools import format_to_stepsize, now
 from model.Order import Order, OrderHoldType
 from model.CanceledOrder import CanceledOrder
 from model.PositionPrice import PositionPrice
@@ -103,6 +103,56 @@ class AsterExchangeAccountV1(ExchangeAccount):
         if cancel_result.get("code") is not None and not config.simulate:
             raise ValueError(f"取消订单失败: {cancel_result}")
         return CanceledOrder.from_order(order=order, cancel_result=cancel_result)
+
+    async def cancel_all(self, *, symbol: str) -> dict:
+        """
+        取消所有未成交订单
+        :param symbol: 交易对
+        """
+        logger.info(f"账户 {self.account.id} 取消所有未成交订单: {symbol}")
+        cancel_result = await AsterExchange.delete_all_open_orders_v1(client=self.client, account=self.account, symbol=symbol)
+        if cancel_result.get("code") is not None:
+            raise ValueError(f"账户 {self.account.id} 取消所有未成交订单失败: {cancel_result}")
+        return cancel_result
+
+    async def get_account_info(self) -> dict:
+        """
+        获取账户信息V4
+        :return: 账户信息V4结果
+        """
+        data = await AsterExchange.account_v4(client=self.client, account=self.account)
+        data.pop("assets")
+        positions = data.get("positions", [])
+        data["positions"] = list(filter(lambda position: float(position["notional"]) != 0, positions))
+        return data
+
+    async def set_leverage(self, *, symbol: str, leverage: int):
+        """
+        设置杠杆
+        :param symbol: 交易对
+        :param leverage: 杠杆
+        """
+        logger.info(f"账户 {self.account.id} 设置杠杆: {symbol} {leverage}")
+        return await AsterExchange.leverage(client=self.client, account=self.account, symbol=symbol, leverage=leverage)
+
+    async def clear_all_positions(self):
+        """
+        清空所有持仓
+        :param symbol: 交易对
+        """
+        account_info = await self.get_account_info()
+        positions = account_info.get("positions", [])
+        for position in positions:
+            position_amount = float(position["positionAmt"])
+            params = OrderParams(
+                symbol=position["symbol"],
+                type=OrderType.MARKET,
+                side=OrderSide.SELL if position_amount > 0 else OrderSide.BUY,
+                quantity=str(position["positionAmt"]).replace("-", ""),
+                timestamp=now(),
+            )
+            logger.info(f"账户 {self.account.id} 清仓下单参数: {params.model_dump_json(indent=2, exclude_none=True)}")
+            await self.order(params=params, hold_type=OrderHoldType.close, price_time=now())
 
     async def get_depth_position(self, *, symbol: str, position: int) -> PositionPrice:
         """

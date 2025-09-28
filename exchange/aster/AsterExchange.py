@@ -195,6 +195,79 @@ class AsterExchange(Exchange):
         return response.json()
 
     @staticmethod
+    async def delete_all_open_orders_v1(*, client: AsyncClient, account: AsterAccountV1, symbol: str) -> dict:
+        """
+        取消所有未成交订单
+        :param client: HTTP客户端
+        :param account: 账户
+        :return: 取消所有未成交订单结果
+        DELETE /fapi/v1/openOrders
+        """
+        params_dict = {
+            "symbol": symbol,
+            "timestamp": now()
+        }
+        data = urlencode(params_dict)
+        hmac_obj = hmac.new(account.api_secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha256)
+        data += f"&signature={hmac_obj.hexdigest()}"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "PythonApp/1.0",
+            "X-MBX-APIKEY": account.api_key,
+        }
+        response = await client.delete(f"/fapi/v1/allOpenOrders?{data}", headers=headers)
+        return response.json()
+
+    @staticmethod
+    async def leverage(*, client: AsyncClient, account: AsterAccountV1, symbol: str, leverage: int) -> dict:
+        """
+        设置杠杆
+        :param client: HTTP客户端
+        :param account: 账户
+        :param symbol: 交易对
+        :return: 设置杠杆结果
+        POST /fapi/v1/leverage
+        """
+        params_dict = {
+            "symbol": symbol,
+            "leverage": leverage,
+            "timestamp": now(),
+        }
+        data = urlencode(params_dict)
+        hmac_obj = hmac.new(account.api_secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha256)
+        data += f"&signature={hmac_obj.hexdigest()}"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "PythonApp/1.0",
+            "X-MBX-APIKEY": account.api_key,
+        }
+        response = await client.post(f"/fapi/v1/leverage?{data}", headers=headers)
+        return response.json()
+
+    @staticmethod
+    async def account_v4(*, client: AsyncClient, account: AsterAccountV1) -> dict:
+        """
+        账户信息V4 
+        :param client: HTTP客户端
+        :param account: 账户
+        :return: 账户信息V4结果
+        GET /fapi/v1/account
+        """
+        params_dict = {
+            "timestamp": now(),
+        }
+        data = urlencode(params_dict)
+        hmac_obj = hmac.new(account.api_secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha256)
+        data += f"&signature={hmac_obj.hexdigest()}"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "PythonApp/1.0",
+            "X-MBX-APIKEY": account.api_key,
+        }
+        response = await client.get(f"/fapi/v4/account?{data}", headers=headers)
+        return response.json()
+
+    @staticmethod
     async def create_listen_key_v1(*, client: AsyncClient, account: AsterAccountV1) -> dict:
         """
         创建监听键

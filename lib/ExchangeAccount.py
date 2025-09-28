@@ -47,3 +47,17 @@ class ExchangeAccount(BaseModel, ABC):
         取消订单
         """
         pass
+
+    @abstractmethod
+    async def cancel_all(self, *, symbol: str):
+        """
+        取消所有未成交订单
+        :param symbol: 交易对
+        """
+        pass
+
+    @abstractmethod
+    async def clear_all_positions(self):
+        """
+        清仓所有持仓
+        """

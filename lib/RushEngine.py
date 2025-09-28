@@ -183,18 +183,37 @@ class RushEngine(BaseModel):
         while len(self.running_tasks) > 0:
             self.remove_finished_tasks()
             await asyncio.sleep(1)
-            self.check_error()
+            if self.check_error():
+                logger.error("发现错误强制退出标示，开始执行清理程序")
+                self.save_tasks()
+                # 清理所有任务
+                await self.clear_all()
+                raise ValueError("发现错误强制退出标示，终止程序")
 
         # 5. 结束保存任务
         self.save_tasks()
+
+    async def clear_all(self):
+        """
+        清理所有任务
+        """
+        tasks = []
+        for account in self.accounts.values():
+            # 清仓挂单
+            for symbol in config.symbols:
+                tasks.append(asyncio.create_task(account.cancel_all(symbol=symbol)))
+            # 清仓持仓
+            tasks.append(asyncio.create_task(account.clear_all_positions()))
+
+        # 等待所有任务完成
+        await asyncio.gather(*tasks, return_exceptions=True)
+
 
     def check_error(self):
         """
         检查是否有错误强制退出标示
         """
-        if os.path.exists("error"):
-            logger.error("发现错误强制退出标示，终止程序")
-            raise ValueError("发现错误强制退出标示，终止程序")
+        return os.path.exists("error")
 
     def check_stop(self) -> bool:
         """
