@@ -421,7 +421,7 @@ class RushTask(BaseModel):
             if order_id in self.expired_order_id_map.keys():
                 await self.handle_failed_limit_order(order_id=order_id, message=self.expired_order_id_map[order_id])
             if order_id in self.filled_order_id_map.keys():
-                await self.limit_order_on_filled(order=order, message=self.filled_order_id_map[order_id])
+                self.limit_order_on_filled(order=order, message=self.filled_order_id_map[order_id])
 
     async def run(self) -> None:
         """
@@ -452,7 +452,7 @@ class RushTask(BaseModel):
             if order_id in self.expired_order_id_map.keys():
                 await self.handle_failed_limit_order(order_id=order_id, message=self.expired_order_id_map[order_id])
             if order_id in self.filled_order_id_map.keys():
-                await self.limit_order_on_filled(order=order, message=self.filled_order_id_map[order_id])
+                self.limit_order_on_filled(order=order, message=self.filled_order_id_map[order_id])
 
     def finish(self) -> None:
         """
