@@ -188,7 +188,6 @@ class RushTask(BaseModel):
         :param filled_result: 已成交订单结果
         :return: None
         """
-        # logger.info(message)
         update_order: dict = message.get("o")
         if update_order is None:
             return

@@ -61,6 +61,7 @@ class RushEngine(BaseModel):
         """
         账户回调函数
         """
+        logger.info(f"账户 [{account_id}] 回调消息：{message}")
         if account_id in self.account_running_tasks:
             for _, task in self.account_running_tasks[account_id].items():
                 data = json.loads(message)
@@ -112,7 +113,7 @@ class RushEngine(BaseModel):
             return None
 
         return RushTask(
-            id="RT-" + uuid.uuid4().hex,
+            id=f"RT-{picked_symbol}-{uuid.uuid4().hex}",
             symbol=picked_symbol,
             first_account=self.accounts[first_account_id],
             second_account=self.accounts[second_account_id],
