@@ -299,3 +299,27 @@ class AsterExchange(Exchange):
             "X-MBX-APIKEY": account.api_key,
         }
         await client.put(f"/fapi/v1/listenKey", headers=headers)
+
+    @staticmethod
+    async def all_open_orders_v1(*, client: AsyncClient, account: AsterAccountV1) -> dict:
+        """
+        获取所有未成交订单
+        :param client: HTTP客户端
+        :param account: 账户
+        :param symbol: 交易对
+        :return: 获取所有未成交订单结果
+        GET /fapi/v1/openOrders
+        """
+        params_dict = {
+            "timestamp": now(),
+        }
+        data = urlencode(params_dict)
+        hmac_obj = hmac.new(account.api_secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha256)
+        data += f"&signature={hmac_obj.hexdigest()}"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "PythonApp/1.0",
+            "X-MBX-APIKEY": account.api_key,
+        }
+        response = await client.get(f"/fapi/v1/openOrders?{data}", headers=headers)
+        return response.json()

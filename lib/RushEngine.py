@@ -211,8 +211,7 @@ class RushEngine(BaseModel):
         tasks = []
         for account in self.accounts.values():
             # 清仓挂单
-            for symbol in config.symbols:
-                tasks.append(asyncio.create_task(account.cancel_all(symbol=symbol)))
+            tasks.append(asyncio.create_task(account.cancel_all_open_orders()))
             # 清仓持仓
             tasks.append(asyncio.create_task(account.clear_all_positions()))
 

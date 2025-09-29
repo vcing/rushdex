@@ -45,6 +45,8 @@ class AsterExchangeAccountV1(ExchangeAccount):
         refresh_task = asyncio.create_task(self.refresh_listen_key())
         # 初始化 WebSocket 连接
         ws_task = asyncio.create_task(self.init_ws(listen_key=listen_key, callback=callback))
+        await self.cancel_all_open_orders()
+        await self.clear_all_positions()
         return asyncio.gather(refresh_task, ws_task, return_exceptions=True)
 
     async def close(self):
@@ -119,6 +121,37 @@ class AsterExchangeAccountV1(ExchangeAccount):
             raise ValueError(f"取消订单失败: {cancel_result}")
         return CanceledOrder.from_order(order=order, cancel_result=cancel_result)
 
+    async def get_all_open_orders(self) -> dict:
+        """
+        获取所有未成交订单
+        :return: 获取所有未成交订单结果
+        """
+        logger.info(f"账户 {self.account.id} 获取所有未成交订单")
+        open_orders = await AsterExchange.all_open_orders_v1(client=self.client, account=self.account)
+        if not isinstance(open_orders, list):
+            raise ValueError(f"账户 {self.account.id} 获取所有未成交订单失败: {open_orders}")
+        return open_orders
+
+    async def get_all_open_orders_symbol_set(self) -> set:
+        """
+        获取所有未成交订单交易对集合
+        :return: 所有未成交订单交易对集合
+        """
+        open_orders = await self.get_all_open_orders()
+        return set(map(lambda order: order["symbol"], open_orders))
+
+    async def cancel_all_open_orders(self) -> dict:
+        """
+        取消所有未成交订单
+        :return: 取消所有未成交订单结果
+        """
+        logger.info(f"账户 {self.account.id} 取消所有未成交订单")
+        symbol_set = await self.get_all_open_orders_symbol_set()
+        cancel_result = {}
+        for symbol in symbol_set:
+            cancel_result[symbol] = await self.cancel_all(symbol=symbol)
+        return cancel_result
+
     async def cancel_all(self, *, symbol: str) -> dict:
         """
         取消所有未成交订单
@@ -127,6 +160,7 @@ class AsterExchangeAccountV1(ExchangeAccount):
         logger.info(f"账户 {self.account.id} 取消所有未成交订单: {symbol}")
         cancel_result = await AsterExchange.delete_all_open_orders_v1(client=self.client, account=self.account, symbol=symbol)
         if cancel_result.get("code") is not None:
+            logger.error(f"账户 {self.account.id} 取消所有未成交订单失败: {cancel_result}")
             raise ValueError(f"账户 {self.account.id} 取消所有未成交订单失败: {cancel_result}")
         return cancel_result
 
@@ -204,7 +238,7 @@ class AsterExchangeAccountV1(ExchangeAccount):
             self.ready = True
             # 持续监听消息
             async for message in self.ws:
-                callback(message)  # 调用回调处理消息
+                callback(message=message)  # 调用回调处理消息
 
         except ConnectionClosed:
             # 连接被关闭时的处理

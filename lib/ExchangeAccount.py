@@ -78,3 +78,11 @@ class ExchangeAccount(BaseModel, ABC):
         关闭交易所账户
         """
         pass
+
+    @abstractmethod
+    async def cancel_all_open_orders(self) -> dict:
+        """
+        取消所有未成交订单
+        :return: 取消所有未成交订单结果
+        """
+        pass
