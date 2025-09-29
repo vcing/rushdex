@@ -30,6 +30,11 @@ def global_exception_handler(loop: asyncio.AbstractEventLoop, context: dict[str,
         with open("error", "w") as f:
             f.write("error")
 
+def check_stop() -> bool:
+    """
+    检查是否需要停止引擎
+    """
+    return os.path.exists("shutdown")
 
 async def main():
 
@@ -37,6 +42,7 @@ async def main():
     def handle_signal(signum, frame):
         signal_name = signal.Signals(signum).name
         logger.info(f"收到 {signal_name}，将在当前任务完成后退出")
+        # 软终止标示
         with open("shutdown", "w") as f:
             f.write("shutdown")
         # os.environ["RUSH_ENGINE_SHUTDOWN"] = "1"
@@ -54,7 +60,7 @@ async def main():
     loop = asyncio.get_running_loop()
     # 设置全局异常处理器
     loop.set_exception_handler(global_exception_handler)
-    while True:
+    while not check_stop():
         # 创建引擎
         rush_engine = RushEngine()
         if config.simulate:

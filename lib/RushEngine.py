@@ -183,6 +183,9 @@ class RushEngine(BaseModel):
             await asyncio.sleep(config.RushEngineInterval)
 
         logger.info("安全退出，等待所有任务完成")
+        # 标记所有运行中的任务为停止
+        for task in self.running_tasks.values():
+            task.stop = True
         while len(self.running_tasks) > 0:
             self.remove_finished_tasks()
             await asyncio.sleep(1)

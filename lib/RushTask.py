@@ -100,6 +100,8 @@ class RushTask(BaseModel):
     expired_order_id_map: dict[str, dict] = {}
     # 同理限价单下单也会存在这个问题
     filled_order_id_map: dict[str, dict] = {}
+    
+    stop:bool = False
 
     def change_status(self, *, status: RushTaskStatus) -> None:
         """
@@ -340,7 +342,12 @@ class RushTask(BaseModel):
         message = f"任务 [{self.id}] 持仓等待 {hold_time:.2f} 秒"
         logger.info(message)
         self.change_stage(stage=RushTaskStage.hold)
-        await asyncio.sleep(hold_time)
+        hold_start = now()
+        while now() - hold_start < hold_time * 1000:
+            await asyncio.sleep(5)
+            if self.stop:
+                logger.info(f"任务 [{self.id}] 持仓等待被停止, 直接进入平仓阶段")
+                break
         asyncio.create_task(self.close_limit())
 
     def random_exchange_account(self) -> tuple[ExchangeAccount, ExchangeAccount]:
