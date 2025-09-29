@@ -149,11 +149,13 @@ class RushEngine(BaseModel):
         for task_id in remove_task_ids:
             self.running_tasks.pop(task_id)
 
-    async def task_runner(self):
+    async def task_runner(self, *, times=100):
         """
         任务运行器
         """
-        while not self.check_stop():
+        current_cycle = 0
+        while not self.check_stop() and current_cycle < times:
+            current_cycle += 1
             # 1. 移除已完成的任务
             self.remove_finished_tasks()
 
@@ -175,8 +177,9 @@ class RushEngine(BaseModel):
                 asyncio.create_task(task.run())
 
             # 3. 如果完成的任务大于20条，保存一次
-            if len(self.completed_tasks) + len(self.failed_tasks) >= 20:
-                self.save_tasks()
+            # 不需要这里保存了，等一次引擎循环结束后自动保存
+            # if len(self.completed_tasks) + len(self.failed_tasks) >= 20:
+            #     self.save_tasks()
 
             # 4. 短暂休眠，避免空循环占用CPU
             await asyncio.sleep(config.RushEngineInterval)
@@ -186,14 +189,16 @@ class RushEngine(BaseModel):
             self.remove_finished_tasks()
             await asyncio.sleep(1)
             if self.check_error():
-                logger.error("发现错误强制退出标示，开始执行清理程序")
-                self.save_tasks()
-                # 清理所有任务
-                await self.clear_all()
-                raise ValueError("发现错误强制退出标示，终止程序")
+                logger.error("发现错误强制退出标示，跳出等待任务完成，直接开始清理工作")
+                break
 
         # 5. 结束保存任务
         self.save_tasks()
+        # 6. 清理账户订单，持仓
+        await self.clear_all()
+
+        if self.check_error():
+            raise ValueError("发现错误强制退出标示，终止程序")
 
     async def clear_all(self):
         """
@@ -210,7 +215,6 @@ class RushEngine(BaseModel):
         # 等待所有任务完成
         await asyncio.gather(*tasks, return_exceptions=True)
 
-
     def check_error(self):
         """
         检查是否有错误强制退出标示
@@ -223,7 +227,7 @@ class RushEngine(BaseModel):
         """
         return os.path.exists("shutdown")
 
-    async def start(self):
+    async def start(self, *, times=100):
         """
         启动交易引擎
         """
@@ -257,7 +261,7 @@ class RushEngine(BaseModel):
         logger.info(f"杠杆设置完成 启动交易")
 
         # 启动任务运行器
-        await self.task_runner()
+        await self.task_runner(times=times)
 
     def save_tasks(self):
         """

@@ -59,7 +59,10 @@ async def main():
     loop = asyncio.get_running_loop()
     # 设置全局异常处理器
     loop.set_exception_handler(global_exception_handler)
-    await rush_engine.start()
+    while True:
+        # 每一轮默认执行100次任务，执行完成后会自动清理账户持仓和订单，防止一些细节问题。
+        # 一轮任务执行时间预估为 100 / 并发数量 * 每个任务的平均执行时间(主要是等待持仓时间)
+        await rush_engine.start(times=100)
 
 
 if __name__ == "__main__":
