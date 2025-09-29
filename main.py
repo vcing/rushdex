@@ -8,23 +8,40 @@ from lib.RushEngine import RushEngine
 
 logger = get_logger(__name__)
 
+def check_bark():
+    if not config.bark_url:
+        logger.error("bark_url 未配置, 无法发送通知")
+        return False
+    if os.path.exists("bark"):
+        logger.info("bark 通知已发送, 无需重复发送")
+        return False
+    return True
+
+def send_bark():
+    if not check_bark():
+        return
+    url = config.bark_url
+    message = "Rushdex 异常退出，请检查。"
+    if "这里改成你自己的推送内容" in url:
+        url = url.replace("这里改成你自己的推送内容", message)
+    elif url.endswith("/"):
+        url += message
+    else:
+        url += f"/{message}"
+    response = requests.get(url)
+    if response.status_code != 200:
+        logger.error(f"发送bark通知失败, 状态码: {response.status_code}, 响应内容: {response.text}")
+    else:
+        logger.info(f"发送bark通知成功, 响应内容: {response.text}")
+        with open("bark", "w") as f:
+            f.write("bark")
 
 def global_exception_handler(loop: asyncio.AbstractEventLoop, context: dict[str, any]) -> None:
     # 获取异常对象
     exception: Exception = context.get("exception")
-
     if exception:
+        send_bark()
         logger.error(f"捕获到异常, 终止程序: {exception}")
-        if config.bark_url:
-            url = config.bark_url
-            message = "Rushdex 异常退出，请检查。"
-            if "这里改成你自己的推送内容" in url:
-                url = url.replace("这里改成你自己的推送内容", message)
-            elif url.endswith("/"):
-                url += message
-            else:
-                url += f"/{message}"
-            requests.get(url)
         # loop.stop()
         # 设置错误退出标示
         with open("error", "w") as f:
@@ -56,6 +73,8 @@ async def main():
         os.remove("shutdown")
     if os.path.exists("error"):
         os.remove("error")
+    if os.path.exists("bark"):
+        os.remove("bark")
 
     loop = asyncio.get_running_loop()
     # 设置全局异常处理器
