@@ -11,6 +11,7 @@ from model.Order import Order, OrderHoldType
 from model.CanceledOrder import CanceledOrder
 from model.PositionPrice import PositionPrice
 import websockets
+from websockets.exceptions import ConnectionClosed
 from lib.ExchangeAccount import ExchangeAccount
 from typing import Callable
 import asyncio
@@ -26,6 +27,7 @@ class AsterExchangeAccountV1(ExchangeAccount):
 
     account: AsterAccountV1 = None
     exchange_info: dict = None
+    ws: websockets.connect = None
 
     async def init(self, *, account: AsterAccountV1, callback: Callable[[str], None]) -> asyncio.Task:
         """
@@ -39,9 +41,22 @@ class AsterExchangeAccountV1(ExchangeAccount):
 
         await self.init_exchange_info()
         listen_key = await self.get_listen_key()
+        # 刷新 listenKey 任务
         refresh_task = asyncio.create_task(self.refresh_listen_key())
+        # 初始化 WebSocket 连接
         ws_task = asyncio.create_task(self.init_ws(listen_key=listen_key, callback=callback))
         return asyncio.gather(refresh_task, ws_task, return_exceptions=True)
+
+    async def close(self):
+        """
+        关闭交易所账户
+        """
+        await self.client.aclose()
+        if self.ws is not None:
+            try:
+                await self.ws.close()
+            except ConnectionClosed:
+                pass
 
     async def init_exchange_info(self):
         """
@@ -180,12 +195,22 @@ class AsterExchangeAccountV1(ExchangeAccount):
 
     async def init_ws(self, *, listen_key: str, callback: Callable[[str], None]):
         """
-        初始化websocket
+        初始化websocket并绑定到实例
         """
-        # 生成listenKey
-        # wss://fstream.asterdex.com
-        async for ws in websockets.connect(uri=f"wss://fstream.asterdex.com/ws/{listen_key}", proxy=self.account.proxy):
-            # 标记账户为就绪
+        uri = f"wss://fstream.asterdex.com/ws/{listen_key}"
+        try:
+            # 建立连接并将实例保存到self.ws
+            self.ws = await websockets.connect(uri, proxy=self.account.proxy)
             self.ready = True
-            async for message in ws:
-                callback(message=message)
+            # 持续监听消息
+            async for message in self.ws:
+                callback(message)  # 调用回调处理消息
+
+        except ConnectionClosed:
+            # 连接被关闭时的处理
+            self.ws = None
+        except Exception as e:
+            # 其他异常处理
+            logger.error(f"账户 {self.account.id} WebSocket错误: {e}")
+            self.ws = None
+            raise e

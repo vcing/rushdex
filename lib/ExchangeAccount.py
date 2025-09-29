@@ -71,3 +71,10 @@ class ExchangeAccount(BaseModel, ABC):
         :param leverage: 杠杆
         """
         pass
+
+    @abstractmethod
+    async def close(self):
+        """
+        关闭交易所账户
+        """
+        pass

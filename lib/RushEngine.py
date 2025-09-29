@@ -197,6 +197,9 @@ class RushEngine(BaseModel):
         self.save_tasks()
         # 6. 清理账户订单，持仓
         await self.clear_all()
+        # 7. 关闭所有账户连接
+        for account in self.accounts.values():
+            await account.close()
 
         if self.check_error():
             raise ValueError("发现错误强制退出标示，终止程序")
@@ -245,6 +248,7 @@ class RushEngine(BaseModel):
                 self.accounts[account.id] = exchangeAccount
                 account_tasks.append(asyncio.create_task(exchangeAccount.init(account=account, callback=functools.partial(self.callback, account_id=account.id))))
 
+        logger.info(f"开始初始化 {len(self.accounts)} 个账户")
         # 等待账户初始化完成
         while any(not account.ready for account in self.accounts.values()):
             await asyncio.sleep(0.1)
