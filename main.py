@@ -32,11 +32,6 @@ def global_exception_handler(loop: asyncio.AbstractEventLoop, context: dict[str,
 
 
 async def main():
-    # 创建引擎
-    rush_engine = RushEngine()
-    if config.simulate:
-        logger.info("模拟模式，开启模拟回调")
-        asyncio.create_task(rush_engine.simulate_callback())
 
     # 信号处理函数：仅设置标志，不做任何中断操作
     def handle_signal(signum, frame):
@@ -60,6 +55,11 @@ async def main():
     # 设置全局异常处理器
     loop.set_exception_handler(global_exception_handler)
     while True:
+        # 创建引擎
+        rush_engine = RushEngine()
+        if config.simulate:
+            logger.info("模拟模式，开启模拟回调")
+            asyncio.create_task(rush_engine.simulate_callback())
         # 每一轮默认执行100次任务，执行完成后会自动清理账户持仓和订单，防止一些细节问题。
         # 一轮任务执行时间预估为 100 / 并发数量 * 每个任务的平均执行时间(主要是等待持仓时间)
         await rush_engine.start(times=100)

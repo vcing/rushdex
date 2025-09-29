@@ -153,9 +153,7 @@ class RushEngine(BaseModel):
         """
         任务运行器
         """
-        current_cycle = 0
-        while not self.check_stop() and current_cycle < times:
-            current_cycle += 1
+        while not self.check_stop() and len(self.completed_tasks) + len(self.failed_tasks) < times:
             # 1. 移除已完成的任务
             self.remove_finished_tasks()
 
