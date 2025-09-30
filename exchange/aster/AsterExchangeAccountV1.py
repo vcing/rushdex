@@ -159,7 +159,7 @@ class AsterExchangeAccountV1(ExchangeAccount):
         """
         logger.info(f"账户 {self.account.id} 取消所有未成交订单: {symbol}")
         cancel_result = await AsterExchange.delete_all_open_orders_v1(client=self.client, account=self.account, symbol=symbol)
-        if cancel_result.get("code") is not None:
+        if cancel_result.get("code") is not None and cancel_result.get("code") != 200:
             logger.error(f"账户 {self.account.id} 取消所有未成交订单失败: {cancel_result}")
             raise ValueError(f"账户 {self.account.id} 取消所有未成交订单失败: {cancel_result}")
         return cancel_result
