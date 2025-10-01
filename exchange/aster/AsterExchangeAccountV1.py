@@ -117,7 +117,9 @@ class AsterExchangeAccountV1(ExchangeAccount):
         """
         cancel_result = await AsterExchange.delete_order_v1(client=self.client, account=self.account, symbol=order.order_params.symbol, order_id=order.order_result["orderId"])
         # 模拟模式 不抛出取消订单异常
-        if cancel_result.get("code") is not None and not config.simulate:
+        # 捕获到异常, 终止程序: 取消订单失败: {'code': -2011, 'msg': 'Unknown order sent.'}
+        # 忽略未知订单异常
+        if cancel_result.get("code") is not None and cancel_result.get("code") == -2011 and not config.simulate:
             raise ValueError(f"取消订单失败: {cancel_result}")
         return CanceledOrder.from_order(order=order, cancel_result=cancel_result)
 
