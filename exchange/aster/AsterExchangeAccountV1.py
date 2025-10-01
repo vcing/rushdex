@@ -119,7 +119,7 @@ class AsterExchangeAccountV1(ExchangeAccount):
         # 模拟模式 不抛出取消订单异常
         # 捕获到异常, 终止程序: 取消订单失败: {'code': -2011, 'msg': 'Unknown order sent.'}
         # 忽略未知订单异常
-        if cancel_result.get("code") is not None and cancel_result.get("code") == -2011 and not config.simulate:
+        if cancel_result.get("code") is not None and not cancel_result.get("code") == -2011 and not config.simulate:
             raise ValueError(f"取消订单失败: {cancel_result}")
         return CanceledOrder.from_order(order=order, cancel_result=cancel_result)
 
