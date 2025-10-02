@@ -2,7 +2,7 @@ import config
 import asyncio
 import signal
 import os
-import requests
+import httpx
 from lib.logger import get_logger
 from lib.RushEngine import RushEngine
 
@@ -17,7 +17,7 @@ def check_bark():
         return False
     return True
 
-def send_bark():
+async def send_bark_async():
     if not check_bark():
         return
     url = config.bark_url
@@ -28,24 +28,36 @@ def send_bark():
         url += message
     else:
         url += f"/{message}"
-    response = requests.get(url)
-    if response.status_code != 200:
-        logger.error(f"发送bark通知失败, 状态码: {response.status_code}, 响应内容: {response.text}")
-    else:
-        logger.info(f"发送bark通知成功, 响应内容: {response.text}")
-        with open("bark", "w") as f:
-            f.write("bark")
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        if response.status_code != 200:
+            logger.error(f"发送bark通知失败, 状态码: {response.status_code}, 响应内容: {response.text}")
+        else:
+            logger.info(f"发送bark通知成功, 响应内容: {response.text}")
+            with open("bark", "w") as f:
+                f.write("bark")
 
 def global_exception_handler(loop: asyncio.AbstractEventLoop, context: dict[str, any]) -> None:
-    # 获取异常对象
-    exception: Exception = context.get("exception")
-    if exception:
-        send_bark()
-        logger.error(f"捕获到异常, 终止程序: {exception}")
-        # loop.stop()
-        # 设置错误退出标示
+    # 1. 先打印完整的异常上下文（asyncio 提供的所有信息），避免遗漏关键信息
+    logger.error(
+        "全局异常处理器捕获到事件循环错误",
+        extra={"asyncio_context": context},  # 附加完整上下文到日志
+        exc_info=context.get("exception")  # 强制日志记录异常堆栈
+    )
+
+    # 2. 异步执行 send_bark，避免阻塞事件循环（同步操作会导致循环卡死）
+    try:
+        # 使用事件循环创建任务，而非直接 await（处理器是同步函数，不能 await）
+        asyncio.create_task(send_bark_async())
+    except Exception as e:
+        logger.error(f"创建 send_bark 任务失败: {str(e)}", exc_info=True)
+
+    # 3. 标记错误状态（文件写入建议加异常捕获，避免处理器自身抛错）
+    try:
         with open("error", "w") as f:
-            f.write("error")
+            f.write(f"error: {str(context.get('exception', '未知异常'))}")  # 写入具体异常
+    except Exception as e:
+        logger.error(f"写入 error 文件失败: {str(e)}", exc_info=True)
 
 def check_stop() -> bool:
     """
