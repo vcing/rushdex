@@ -1,3 +1,4 @@
+import json
 import config
 import asyncio
 import signal
@@ -40,7 +41,7 @@ async def send_bark_async():
 def global_exception_handler(loop: asyncio.AbstractEventLoop, context: dict[str, any]) -> None:
     # 1. 先打印完整的异常上下文（asyncio 提供的所有信息），避免遗漏关键信息
     logger.error(
-        "全局异常处理器捕获到事件循环错误",
+        "全局异常处理器捕获到事件循环错误:" + json.dumps(context, default=str),
         extra={"asyncio_context": context},  # 附加完整上下文到日志
         exc_info=context.get("exception")  # 强制日志记录异常堆栈
     )

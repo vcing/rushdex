@@ -452,7 +452,7 @@ class RushTask(BaseModel):
         results: tuple[Order, Order] = await asyncio.gather(buy_task, sell_task, return_exceptions=True)
         for order in results:
             if isinstance(order, Exception):
-                logger.error(f"任务 [{self.id}] 开仓限价单失败，异常信息：{order}")
+                logger.error(f"任务 [{self.id}] 开仓限价单失败，异常信息：{json.dumps(order, default=str)}")
                 self.failed()
                 return
             order_id = str(order.order_result["orderId"])
